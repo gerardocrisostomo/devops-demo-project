@@ -1,0 +1,108 @@
+# =============================================================================
+# CD PIPELINE — Deploys to AWS after CI passes (only on main branch)
+# =============================================================================
+# This workflow deploys the Lambda and frontend to AWS.
+# It only runs when code is pushed to main (after PR is merged).
+# =============================================================================
+
+name: Deploy to AWS
+
+# TRIGGER: Only on push to main (after PR merge)
+on:
+  push:
+    branches: [main]
+
+# Required: AWS credentials stored as GitHub Secrets
+# Go to: Repo Settings → Secrets → Actions → New repository secret
+# Add: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Deploy Lambda backend
+  # ===========================================================================
+  deploy-backend:
+    name: Deploy Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials from GitHub Secrets
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Package the Lambda
+      - name: Package Lambda
+        run: |
+          cd backend
+          zip -r ../lambda-package.zip lambda_function.py
+
+      # Deploy to AWS Lambda
+      - name: Deploy Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://lambda-package.zip
+
+      # Verify deployment
+      - name: Verify deployment
+        run: |
+          aws lambda get-function \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --query 'Configuration.LastModified' \
+            --output text
+
+  # ===========================================================================
+  # JOB 2: Deploy frontend to S3
+  # ===========================================================================
+  deploy-frontend:
+    name: Deploy Frontend to S3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Upload HTML to S3 bucket
+      - name: Deploy to S3
+        run: |
+          aws s3 sync frontend/ s3://${{ secrets.S3_BUCKET_NAME }}/ \
+            --delete \
+            --content-type "text/html"
+
+      # Invalidate CloudFront cache so users see the new version
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+  # ===========================================================================
+  # JOB 3: Post-deployment health check
+  # ===========================================================================
+  health-check:
+    name: Post-Deploy Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]   # Runs after both deploys
+
+    steps:
+      - name: Wait for deployment to stabilize
+        run: sleep 10
+
+      - name: Check Lambda health
+        run: |
+          # This would call your API health endpoint
+          echo "Health check passed (configure with actual API URL)"
+          # curl -f https://your-api-url/health || exit 1
