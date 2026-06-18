@@ -28,6 +28,8 @@ def lambda_handler(event, context):
             return handle_health()
         elif path == "/version":
             return handle_version()
+        elif path == "/ping":
+            return handle_ping()
         else:
             return _response(404, {"error": f"Unknown path: {path}"})
 
@@ -78,6 +80,14 @@ def handle_version():
     return _response(200, {
         "version": os.environ.get("APP_VERSION", "1.0.0"),
         "environment": os.environ.get("ENVIRONMENT", "development")
+    })
+
+
+def handle_ping():
+    """Simple ping endpoint to verify the API is reachable."""
+    return _response(200, {
+        "message": "pong",
+        "timestamp": datetime.now().isoformat()
     })
 
 

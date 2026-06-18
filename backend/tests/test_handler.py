@@ -113,3 +113,15 @@ class TestCORSHeaders:
         result = lambda_handler(event, None)
         assert result["headers"]["Access-Control-Allow-Origin"] == "*"
         assert "POST" in result["headers"]["Access-Control-Allow-Methods"]
+
+
+class TestPingEndpoint:
+    """Tests for the ping endpoint."""
+
+    def test_ping_returns_pong(self):
+        """Ping should return pong."""
+        event = {"path": "/ping", "body": "{}"}
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["message"] == "pong"
