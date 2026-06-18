@@ -44,12 +44,12 @@ def handle_submit(body):
     description = body.get("description", "")
     email = body.get("email", "")
 
-    # Validate required fields
-    if not title or not description:
-        return _response(400, {
-            "error": "Missing required fields",
-            "required": ["title", "description"]
-        })
+    # BUG: Removed validation! Now accepts empty submissions!
+    # if not title or not description:
+    #     return _response(400, {
+    #         "error": "Missing required fields",
+    #         "required": ["title", "description"]
+    #     })
 
     # Validate email format
     if email and "@" not in email:
